@@ -8,8 +8,11 @@ using UnityEngine.U2D;
 /// Sprite Shape: borde de roca en todas las superficies y relleno oscuro por dentro.
 /// La física NO cambia: los colliders originales se quedan igual, solo se ocultan sus sprites grises.
 ///
-/// Uso: después de mover o agregar rampas, clic derecho en el componente → "Rebuild Skin".
+/// Uso: con "Live Update" activo, la roca se regenera sola en el editor al mover, escalar,
+/// agregar, borrar o editar (Edit Collider) cualquier pieza dentro de levelRoot.
+/// También se puede regenerar a mano: clic derecho en el componente → "Rebuild Skin".
 /// </summary>
+[ExecuteAlways]
 public class LevelSkin : MonoBehaviour
 {
     [Tooltip("Raíz de los objetos del nivel (piso, techo, rampas). Se usan todos los colliders dentro.")]
@@ -36,6 +39,16 @@ public class LevelSkin : MonoBehaviour
     [Tooltip("Ocultar los sprites grises originales de los colliders.")]
     public bool hideOriginalSprites = true;
 
+    [Header("Extremos abiertos (partes de nivel)")]
+    [Tooltip("Sin borde de roca en los lados verticales del extremo izquierdo y derecho, para que las partes se conecten sin costura. Requiere un sprite con \"blank\" en el nombre dentro del perfil.")]
+    public bool openEnds = false;
+
+    [Header("Editor")]
+    [Tooltip("Regenerar la roca automáticamente en el editor cuando cambia cualquier pieza del nivel.")]
+    public bool liveUpdate = true;
+    [Tooltip("Segundos sin cambios antes de regenerar (para que arrastrar piezas sea fluido).")]
+    public float liveUpdateDelay = 0.15f;
+
     [ContextMenu("Rebuild Skin")]
     public void Rebuild()
     {
@@ -49,18 +62,116 @@ public class LevelSkin : MonoBehaviour
 
         List<List<Vector2>> outlines = BuildMergedOutlines();
 
+        // Límites izquierdo/derecho de todo el contorno (en coordenadas locales), para los extremos abiertos
+        float minX = float.MaxValue, maxX = float.MinValue;
+        foreach (var o in outlines)
+            foreach (Vector2 w in o)
+            {
+                float lx = transform.InverseTransformPoint(w).x;
+                minX = Mathf.Min(minX, lx);
+                maxX = Mathf.Max(maxX, lx);
+            }
+
+        int blank = openEnds ? BlankSpriteIndex() : -1;
+        if (openEnds && blank < 0)
+            Debug.LogWarning("LevelSkin: openEnds necesita un sprite con 'blank' en el nombre dentro del perfil.", this);
+
         for (int i = 0; i < outlines.Count; i++)
-            CreateShape("Rock_" + i, outlines[i]);
+            CreateShape("Rock_" + i, outlines[i], minX, maxX, blank);
 
         if (hideOriginalSprites)
         {
             foreach (Collider2D col in levelRoot.GetComponentsInChildren<Collider2D>())
             {
-                SpriteRenderer sr = col.GetComponent<SpriteRenderer>();
-                if (sr != null) sr.enabled = false;
+                // Sprites grises o relleno de vista previa de LevelPiece
+                Renderer r = col.GetComponent<Renderer>();
+                if (r != null) r.enabled = false;
             }
         }
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            lastHash = ComputeHash();
+            if (gameObject.scene.IsValid())
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+        }
+#endif
     }
+
+#if UNITY_EDITOR
+    // ---- Actualización en vivo (solo editor, fuera de Play) ----
+    private int lastHash;
+    private double changedAt = -1;
+
+    void OnEnable()
+    {
+        if (Application.isPlaying) return;
+        lastHash = ComputeHash();
+        UnityEditor.EditorApplication.update -= EditorTick;
+        UnityEditor.EditorApplication.update += EditorTick;
+    }
+
+    void OnDisable()
+    {
+        UnityEditor.EditorApplication.update -= EditorTick;
+    }
+
+    void EditorTick()
+    {
+        if (this == null) { UnityEditor.EditorApplication.update -= EditorTick; return; }
+        if (Application.isPlaying || !liveUpdate || levelRoot == null || caveProfile == null) return;
+        if (UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode) return;
+        // Dentro de una instancia de prefab no se pueden borrar/crear hijos: se edita abriendo el prefab.
+        if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this)) return;
+
+        double now = UnityEditor.EditorApplication.timeSinceStartup;
+        int h = ComputeHash();
+        if (h != lastHash)
+        {
+            lastHash = h;
+            changedAt = now;
+        }
+
+        if (changedAt >= 0 && now - changedAt >= liveUpdateDelay)
+        {
+            changedAt = -1;
+            Rebuild();
+        }
+    }
+
+    // Huella de todo lo que afecta la forma de la roca: si cambia, hay que regenerar.
+    int ComputeHash()
+    {
+        if (levelRoot == null) return 0;
+        unchecked
+        {
+            int h = 17;
+            h = h * 31 + (caveProfile != null ? caveProfile.GetHashCode() : 0);
+            h = h * 31 + extendDistance.GetHashCode();
+            h = h * 31 + mergeDistance.GetHashCode();
+            h = h * 31 + sortingOrder;
+            h = h * 31 + (openEnds ? 1 : 0);
+            if (extendDown != null) foreach (var c in extendDown) h = h * 31 + (c != null ? c.GetHashCode() : 1);
+            if (extendUp != null) foreach (var c in extendUp) h = h * 31 + (c != null ? c.GetHashCode() : 2);
+
+            foreach (Collider2D col in levelRoot.GetComponentsInChildren<Collider2D>(true))
+            {
+                h = h * 31 + col.GetHashCode();
+                h = h * 31 + (col.enabled && col.gameObject.activeInHierarchy && !col.isTrigger ? 1 : 0);
+                // Relativo a este objeto: mover todo el nivel/parte junto no obliga a regenerar
+                h = h * 31 + (transform.worldToLocalMatrix * col.transform.localToWorldMatrix).GetHashCode();
+                h = h * 31 + col.offset.GetHashCode();
+                if (col is BoxCollider2D box)
+                    h = h * 31 + box.size.GetHashCode();
+                else if (col is PolygonCollider2D poly)
+                    for (int p = 0; p < poly.pathCount; p++)
+                        foreach (Vector2 v in poly.GetPath(p)) h = h * 31 + v.GetHashCode();
+            }
+            return h;
+        }
+    }
+#endif
 
     void ClearSkin()
     {
@@ -168,7 +279,7 @@ public class LevelSkin : MonoBehaviour
         }
     }
 
-    void CreateShape(string shapeName, List<Vector2> worldPoints)
+    void CreateShape(string shapeName, List<Vector2> worldPoints, float minX, float maxX, int blankIndex)
     {
         var pts = new List<Vector2>();
         foreach (Vector2 w in worldPoints)
@@ -199,7 +310,11 @@ public class LevelSkin : MonoBehaviour
             spline.SetHeight(i, 1f);
             // Sin sprites de esquina: el borde continúa alrededor de la esquina en lugar de cortarse
             spline.SetCorner(i, false);
-            spline.SetSpriteIndex(i, PickEdgeSprite(pts[i], pts[(i + 1) % pts.Count], i));
+            Vector2 a = pts[i], b = pts[(i + 1) % pts.Count];
+            bool endEdge = blankIndex >= 0 &&
+                ((Mathf.Abs(a.x - minX) < EndTolerance && Mathf.Abs(b.x - minX) < EndTolerance) ||
+                 (Mathf.Abs(a.x - maxX) < EndTolerance && Mathf.Abs(b.x - maxX) < EndTolerance));
+            spline.SetSpriteIndex(i, endEdge ? blankIndex : PickEdgeSprite(a, b, i));
         }
 
         SpriteShapeRenderer ssr = go.GetComponent<SpriteShapeRenderer>();
@@ -210,9 +325,11 @@ public class LevelSkin : MonoBehaviour
 
     // El perfil tiene: [0] tira de 4 tiles (para tramos largos) y [1..n] tiles sueltos (para tramos cortos,
     // así no se aplastan). En tramos cortos se elige un tile "al azar" pero siempre el mismo para ese índice.
+    // (El sprite "blank" de los extremos abiertos va al final de la lista y no entra en el sorteo.)
     int PickEdgeSprite(Vector2 a, Vector2 b, int index)
     {
         int spriteCount = caveProfile.angleRanges.Count > 0 ? caveProfile.angleRanges[0].sprites.Count : 1;
+        if (BlankSpriteIndex() >= 0) spriteCount--;
         if (spriteCount <= 1) return 0;
 
         Sprite strip = caveProfile.angleRanges[0].sprites[0];
@@ -220,6 +337,16 @@ public class LevelSkin : MonoBehaviour
         if (Vector2.Distance(a, b) >= stripWidth) return 0;
 
         return 1 + (index * 7 + 3) % (spriteCount - 1);
+    }
+
+    const float EndTolerance = 0.05f;
+
+    int BlankSpriteIndex()
+    {
+        if (caveProfile == null || caveProfile.angleRanges.Count == 0) return -1;
+        var sprites = caveProfile.angleRanges[0].sprites;
+        int last = sprites.Count - 1;
+        return last > 0 && sprites[last] != null && sprites[last].name.Contains("blank") ? last : -1;
     }
 
     // Sprite Shape no acepta puntos demasiado cercanos. El CompositeCollider redondea las esquinas
