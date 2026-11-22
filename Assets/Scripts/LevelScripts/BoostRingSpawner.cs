@@ -5,6 +5,8 @@ using UnityEngine;
 /// Pone anillos de impulso en las partes que crea el LevelManager (va en el mismo objeto).
 /// Cada bloque de "oneRingEveryParts" partes tiene un anillo en una de ellas, elegida al azar.
 /// El anillo va cerca de la línea media del túnel (un poco arriba o abajo) y nunca encima del terreno.
+/// Se pueden poner varios en el LevelManager (ej. uno para anillos azules y otro para los rojos que frenan);
+/// los anillos nunca quedan encimados entre sí.
 /// </summary>
 [RequireComponent(typeof(LevelManager))]
 public class BoostRingSpawner : MonoBehaviour
@@ -59,7 +61,6 @@ public class BoostRingSpawner : MonoBehaviour
 
         var filter = new ContactFilter2D();
         filter.SetLayerMask(terrainLayers);
-        filter.useTriggers = false;
 
         for (int attempt = 0; attempt < placementAttempts; attempt++)
         {
@@ -69,13 +70,28 @@ public class BoostRingSpawner : MonoBehaviour
             float ly = middle + Mathf.Lerp(-spread, spread, (float)rng.NextDouble());
             Vector3 pos = part.transform.TransformPoint(new Vector3(lx, ly, 0f));
 
-            if (Physics2D.OverlapBox(pos, clearSpace, 0f, filter, hits) > 0) continue;
+            if (Blocked(pos, filter)) continue;
 
             BoostRing ring = Instantiate(ringPrefab, pos, Quaternion.identity, part.transform);
             ring.name = ringPrefab.name;
             return;
         }
         // Parte muy llena: sin anillo esta vez
+    }
+
+    // Ocupado si hay terreno sólido u otro anillo (de cualquier tipo) en el espacio libre.
+    bool Blocked(Vector3 pos, ContactFilter2D filter)
+    {
+        // Terreno sólido dentro del espacio libre
+        filter.useTriggers = false;
+        if (Physics2D.OverlapBox(pos, clearSpace, 0f, filter, hits) > 0) return true;
+
+        // Otros anillos cerca (área más grande para que no queden pegados)
+        filter.useTriggers = true;
+        Physics2D.OverlapBox(pos, clearSpace * 3f, 0f, filter, hits);
+        foreach (Collider2D h in hits)
+            if (h.isTrigger && h.GetComponentInParent<BoostRing>() != null) return true;
+        return false;
     }
 
     void OnDrawGizmosSelected()

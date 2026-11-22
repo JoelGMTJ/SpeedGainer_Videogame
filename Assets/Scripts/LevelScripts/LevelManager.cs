@@ -8,7 +8,7 @@ using UnityEngine;
 /// se desactivan (y se vuelven a activar si el jugador regresa, ej. con el viento en contra).
 ///
 /// Después de la última parte se coloca "endPrefab" (la pared final).
-/// Si hay un BoostRingSpawner en el mismo objeto, se le avisa de cada parte nueva para poner anillos.
+/// Cada BoostRingSpawner en el mismo objeto recibe las partes nuevas para poner anillos (puede haber varios).
 /// </summary>
 [DefaultExecutionOrder(-50)]
 public class LevelManager : MonoBehaviour
@@ -63,7 +63,7 @@ public class LevelManager : MonoBehaviour
     private readonly List<int> sequence = new List<int>();
     private Vector3 nextStart;
     private System.Random rng;
-    private BoostRingSpawner ringSpawner;
+    private BoostRingSpawner[] ringSpawners = new BoostRingSpawner[0];
 
     void Awake()
     {
@@ -81,8 +81,8 @@ public class LevelManager : MonoBehaviour
         BuildSequence();
         EndX = PredictEndX();
 
-        ringSpawner = GetComponent<BoostRingSpawner>();
-        if (ringSpawner != null) ringSpawner.Plan(partsInLevel, rng);
+        ringSpawners = GetComponents<BoostRingSpawner>();
+        foreach (BoostRingSpawner rs in ringSpawners) rs.Plan(partsInLevel, rng);
     }
 
     void Start()
@@ -178,9 +178,9 @@ public class LevelManager : MonoBehaviour
             EndPart = part;
             EndX = part.transform.position.x;
         }
-        else if (ringSpawner != null)
+        else
         {
-            ringSpawner.OnPartSpawned(part, index);
+            foreach (BoostRingSpawner rs in ringSpawners) rs.OnPartSpawned(part, index);
         }
 
         PartSpawned?.Invoke(part, index);

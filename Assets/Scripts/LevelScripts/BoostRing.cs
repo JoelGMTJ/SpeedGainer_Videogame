@@ -4,6 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Anillo de impulso: si el jugador pasa a través de él, gana un poco de velocidad
 /// en la dirección en la que ya se está moviendo (funciona con gravedad invertida y hacia la izquierda).
+/// Con boostAmount negativo frena en lugar de impulsar (el anillo rojo, SlowRing).
 ///
 /// El aro tiene dos mitades: "Back" (se dibuja detrás del jugador) y "Front" (delante),
 /// así el astronauta se ve pasando a través. La animación de giro (como un frisbee) está en el
@@ -14,8 +15,10 @@ using UnityEngine;
 public class BoostRing : MonoBehaviour
 {
     [Header("Impulso")]
-    [Tooltip("Velocidad que se suma (unidades/seg) en la dirección del movimiento.")]
+    [Tooltip("Velocidad que se suma (unidades/seg) en la dirección del movimiento. Negativo = frena (anillo rojo).")]
     public float boostAmount = 4f;
+    [Tooltip("Solo para anillos que frenan: velocidad mínima con la que te deja (no te detiene ni te regresa).")]
+    [Min(0f)] public float minSpeedAfterSlow = 2f;
     [Tooltip("Si el jugador va más lento que esto, el impulso se aplica hacia la derecha.")]
     public float minSpeedForDirection = 0.5f;
 
@@ -59,8 +62,18 @@ public class BoostRing : MonoBehaviour
         if (rb == null || rb.GetComponent<PlayerMovement>() == null) return;
 
         Vector2 v = rb.linearVelocity;
-        Vector2 dir = v.magnitude >= minSpeedForDirection ? v.normalized : Vector2.right;
-        rb.linearVelocity = v + dir * boostAmount;
+        if (boostAmount >= 0f)
+        {
+            Vector2 dir = v.magnitude >= minSpeedForDirection ? v.normalized : Vector2.right;
+            rb.linearVelocity = v + dir * boostAmount;
+        }
+        else
+        {
+            // Frenar: misma dirección, menos velocidad (sin bajar de minSpeedAfterSlow)
+            float speed = v.magnitude;
+            float slowed = Mathf.Max(Mathf.Min(speed, minSpeedAfterSlow), speed + boostAmount);
+            if (speed > 0.0001f) rb.linearVelocity = v / speed * slowed;
+        }
 
         readyTime = Time.time + cooldown;
         StopAllCoroutines();
