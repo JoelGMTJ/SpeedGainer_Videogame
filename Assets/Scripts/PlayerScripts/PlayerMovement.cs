@@ -3,29 +3,19 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// Todo el movimiento del jugador en un solo script:
-/// auto-correr / control manual, cambio de gravedad, límite de velocidad, reinicio
+/// control con A/D o flechas, viento del nivel, cambio de gravedad, límite de velocidad, reinicio
 /// y lectura de velocidad para la UI.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerMovement : MonoBehaviour
 {
-    public enum MoveMode
-    {
-        AutoRun, // corre solo hacia la derecha
-        Manual   // se mueve con A/D o flechas
-    }
+    [Header("Viento del nivel")]
+    [Tooltip("Empuje horizontal constante (unidades/seg²). Positivo = hacia la derecha (a favor), negativo = hacia la izquierda (en contra), 0 = sin viento.")]
+    public float windForce = 0f;
+    [Tooltip("Velocidad máxima a la que el viento por sí solo puede llevarte en su dirección (las pendientes pueden superarla).")]
+    public float windTopSpeed = 10f;
 
-    [Header("Modo de movimiento")]
-    [Tooltip("AutoRun: corre solo hacia la derecha. Manual: se controla con A/D o flechas.")]
-    public MoveMode mode = MoveMode.AutoRun;
-
-    [Header("Auto-correr (modo AutoRun)")]
-    [Tooltip("Velocidad hacia la derecha que intenta mantener. Una pendiente puede hacerte ir más rápido que esto.")]
-    public float forwardSpeed = 8f;
-    [Tooltip("Qué tan rápido llega a forwardSpeed.")]
-    public float forwardAcceleration = 10f;
-
-    [Header("Control manual (modo Manual)")]
+    [Header("Control")]
     [Tooltip("Velocidad máxima que se alcanza solo con las teclas (las pendientes pueden superarla).")]
     public float moveSpeed = 5f;
     [Tooltip("Qué tan rápido gana velocidad en la dirección presionada.")]
@@ -47,7 +37,7 @@ public class PlayerMovement : MonoBehaviour
     public Key gravitySwitchKey = Key.Space;
     public Key leftKey = Key.A;
     public Key rightKey = Key.D;
-    [Tooltip("Las flechas izquierda/derecha también mueven en modo Manual.")]
+    [Tooltip("Las flechas izquierda/derecha también mueven.")]
     public bool allowArrowKeys = true;
     public Key resetKey = Key.R;
 
@@ -112,25 +102,23 @@ public class PlayerMovement : MonoBehaviour
     {
         float vx = rb.linearVelocity.x;
 
-        if (mode == MoveMode.AutoRun)
-        {
-            // Solo empuja si va más lento que forwardSpeed: así una bajada puede acelerarte más.
-            if (vx < forwardSpeed)
-                vx = Mathf.MoveTowards(vx, forwardSpeed, forwardAcceleration * Time.fixedDeltaTime);
-        }
-        else if (Mathf.Abs(inputX) > 0.01f)
+        if (Mathf.Abs(inputX) > 0.01f)
         {
             // Sin teclas no se toca la velocidad: la física conserva el impulso.
             float target = inputX * moveSpeed;
             bool sameDirection = Mathf.Sign(vx) == Mathf.Sign(target) || Mathf.Approximately(vx, 0f);
 
-            // Si ya vas más rápido que moveSpeed en esa dirección (por una pendiente), no te frena.
+            // Si ya vas más rápido que moveSpeed en esa dirección (por una pendiente o el viento), no te frena.
             if (!(sameDirection && Mathf.Abs(vx) >= moveSpeed))
             {
                 float rate = sameDirection ? acceleration : deceleration;
                 vx = Mathf.MoveTowards(vx, target, rate * Time.fixedDeltaTime);
             }
         }
+
+        // El viento empuja siempre, se presionen teclas o no, hasta windTopSpeed en su dirección.
+        if (windForce != 0f && vx * Mathf.Sign(windForce) < windTopSpeed)
+            vx += windForce * Time.fixedDeltaTime;
 
         Vector2 velocity = new Vector2(vx, rb.linearVelocity.y);
 
