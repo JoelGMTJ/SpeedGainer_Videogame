@@ -42,6 +42,8 @@ public class LevelSkin : MonoBehaviour
     [Header("Extremos abiertos (partes de nivel)")]
     [Tooltip("Sin borde de roca en los lados verticales del extremo izquierdo y derecho, para que las partes se conecten sin costura. Requiere un sprite con \"blank\" en el nombre dentro del perfil.")]
     public bool openEnds = false;
+    [Tooltip("Con openEnds: dejar el borde de roca del lado izquierdo (para el inicio de un nivel, que solo conecta por la derecha).")]
+    public bool keepLeftEdge = false;
 
     [Header("Editor")]
     [Tooltip("Regenerar la roca automáticamente en el editor cuando cambia cualquier pieza del nivel.")]
@@ -99,6 +101,33 @@ public class LevelSkin : MonoBehaviour
 #endif
     }
 
+    /// <summary>
+    /// Cambia el perfil de roca (ej. gris → café). Si los dos perfiles tienen la misma lista de sprites
+    /// solo se cambia el perfil de cada forma (rápido, sirve en juego); si no, se regenera todo.
+    /// </summary>
+    public void SetProfile(SpriteShape profile)
+    {
+        if (profile == null || profile == caveProfile) return;
+
+        bool sameLayout = caveProfile != null &&
+            caveProfile.angleRanges.Count == profile.angleRanges.Count &&
+            (caveProfile.angleRanges.Count == 0 ||
+             caveProfile.angleRanges[0].sprites.Count == profile.angleRanges[0].sprites.Count);
+
+        caveProfile = profile;
+        if (!sameLayout || transform.childCount == 0)
+        {
+            Rebuild();
+            return;
+        }
+
+        foreach (SpriteShapeController ssc in GetComponentsInChildren<SpriteShapeController>())
+        {
+            ssc.spriteShape = profile;
+            ssc.RefreshSpriteShape();
+        }
+    }
+
 #if UNITY_EDITOR
     // ---- Actualización en vivo (solo editor, fuera de Play) ----
     private int lastHash;
@@ -151,7 +180,7 @@ public class LevelSkin : MonoBehaviour
             h = h * 31 + extendDistance.GetHashCode();
             h = h * 31 + mergeDistance.GetHashCode();
             h = h * 31 + sortingOrder;
-            h = h * 31 + (openEnds ? 1 : 0);
+            h = h * 31 + (openEnds ? 1 : 0) + (keepLeftEdge ? 2 : 0);
             if (extendDown != null) foreach (var c in extendDown) h = h * 31 + (c != null ? c.GetHashCode() : 1);
             if (extendUp != null) foreach (var c in extendUp) h = h * 31 + (c != null ? c.GetHashCode() : 2);
 
@@ -312,7 +341,7 @@ public class LevelSkin : MonoBehaviour
             spline.SetCorner(i, false);
             Vector2 a = pts[i], b = pts[(i + 1) % pts.Count];
             bool endEdge = blankIndex >= 0 &&
-                ((Mathf.Abs(a.x - minX) < EndTolerance && Mathf.Abs(b.x - minX) < EndTolerance) ||
+                ((!keepLeftEdge && Mathf.Abs(a.x - minX) < EndTolerance && Mathf.Abs(b.x - minX) < EndTolerance) ||
                  (Mathf.Abs(a.x - maxX) < EndTolerance && Mathf.Abs(b.x - maxX) < EndTolerance));
             spline.SetSpriteIndex(i, endEdge ? blankIndex : PickEdgeSprite(a, b, i));
         }
