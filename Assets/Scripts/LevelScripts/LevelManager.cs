@@ -33,6 +33,9 @@ public class LevelManager : MonoBehaviour
     [Tooltip("Pieza que cierra el nivel después de la última parte (pared final).")]
     public LevelPart endPrefab;
 
+    [Tooltip("Cuánto se enciman las partes entre sí (unidades). Evita la pequeña separación visible entre segmentos.")]
+    [Min(0f)] public float partOverlap = 0.25f;
+
     [Header("Apariencia")]
     [Tooltip("Perfil de roca para las partes (ej. el café en el nivel 3). Vacío = el que trae cada parte (gris).")]
     public UnityEngine.U2D.SpriteShape caveProfile;
@@ -128,8 +131,8 @@ public class LevelManager : MonoBehaviour
     float PredictEndX()
     {
         float x = nextStart.x;
-        foreach (int i in sequence) x += partPrefabs[i].length;
-        return x;
+        foreach (int i in sequence) x += partPrefabs[i].length - partOverlap;
+        return x - partOverlap; // la pared final también se encima
     }
 
     void UpdateParts()
@@ -163,7 +166,9 @@ public class LevelManager : MonoBehaviour
 
     void SpawnPart(LevelPart prefab, int index, bool isEnd)
     {
-        LevelPart part = Instantiate(prefab, nextStart, Quaternion.identity, transform);
+        // Cada parte empieza un poco dentro de la anterior para que no quede separación
+        Vector3 start = nextStart - Vector3.right * partOverlap;
+        LevelPart part = Instantiate(prefab, start, Quaternion.identity, transform);
         part.name = (isEnd ? "End_" : index.ToString("00") + "_") + prefab.name;
 
         if (caveProfile != null)

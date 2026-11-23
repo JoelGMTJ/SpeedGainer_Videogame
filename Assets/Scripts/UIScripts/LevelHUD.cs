@@ -19,8 +19,8 @@ public class LevelHUD : MonoBehaviour
 
     [Header("Velocidad")]
     public TMP_Text speedText;
-    [Tooltip("Unidades/seg a km/h. 3.6 = 1 unidad es 1 metro.")]
-    public float speedToKmh = 3.6f;
+    [Tooltip("Unidades/seg a km/h (velocidad mostrada = velocidad * este valor).")]
+    public float speedToKmh = 2.4f;
 
     [Header("Estrellas y tiempo")]
     [Tooltip("Las 3 imágenes de estrella, de izquierda a derecha.")]

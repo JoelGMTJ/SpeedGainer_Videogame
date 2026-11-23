@@ -46,6 +46,10 @@ public class PlayerMovement : MonoBehaviour
     public bool resetToStartPosition = true;
     public Vector2 resetPosition = Vector2.zero;
 
+    [Header("Meta")]
+    [Tooltip("Qué tan rápido frena el jugador al cruzar la meta (sin viento ni controles).")]
+    public float finishBrake = 25f;
+
     [Header("Física")]
     [Tooltip("Detección continua: evita que el jugador atraviese o se hunda en el suelo a alta velocidad.")]
     public bool continuousCollision = true;
@@ -55,6 +59,10 @@ public class PlayerMovement : MonoBehaviour
     public float HorizontalSpeed => rb != null ? rb.linearVelocity.x : 0f;
     public float VerticalSpeed => rb != null ? rb.linearVelocity.y : 0f;
     public bool IsGravityInverted => gravityInverted;
+    /// <summary>Falso mientras se muestra la introducción / cuenta regresiva: ninguna tecla hace nada.</summary>
+    public bool InputLocked { get; private set; }
+    /// <summary>Verdadero después de cruzar la meta: sin viento ni controles, solo frena.</summary>
+    public bool IsStoppedAtFinish { get; private set; }
 
     private Rigidbody2D rb;
     private Vector2 startPosition;
@@ -84,13 +92,16 @@ public class PlayerMovement : MonoBehaviour
     void Update()
     {
         Keyboard kb = Keyboard.current;
-        if (kb == null) return;
-
-        if (kb[gravitySwitchKey].wasPressedThisFrame)
-            FlipGravity();
+        inputX = 0f;
+        if (kb == null || InputLocked) return;
 
         if (kb[resetKey].wasPressedThisFrame)
             ResetPlayer();
+
+        if (IsStoppedAtFinish) return;
+
+        if (kb[gravitySwitchKey].wasPressedThisFrame)
+            FlipGravity();
 
         float h = 0f;
         if (kb[leftKey].isPressed || (allowArrowKeys && kb.leftArrowKey.isPressed)) h -= 1f;
@@ -101,6 +112,14 @@ public class PlayerMovement : MonoBehaviour
     void FixedUpdate()
     {
         float vx = rb.linearVelocity.x;
+
+        // Después de la meta: sin viento ni controles, solo frenar
+        if (IsStoppedAtFinish)
+        {
+            vx = Mathf.MoveTowards(vx, 0f, finishBrake * Time.fixedDeltaTime);
+            rb.linearVelocity = new Vector2(vx, rb.linearVelocity.y);
+            return;
+        }
 
         if (Mathf.Abs(inputX) > 0.01f)
         {
@@ -141,8 +160,23 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>Se llama cuando el jugador se reinicia (tecla R).</summary>
     public event System.Action PlayerReset;
 
+    /// <summary>Bloquea / desbloquea todas las teclas (introducción y cuenta regresiva).</summary>
+    public void SetInputLocked(bool locked)
+    {
+        InputLocked = locked;
+        if (locked) inputX = 0f;
+    }
+
+    /// <summary>Al cruzar la meta: quita viento y controles y frena hasta detenerse.</summary>
+    public void StopAtFinish()
+    {
+        IsStoppedAtFinish = true;
+        inputX = 0f;
+    }
+
     public void ResetPlayer()
     {
+        IsStoppedAtFinish = false;
         rb.linearVelocity = Vector2.zero;
         rb.angularVelocity = 0f;
 

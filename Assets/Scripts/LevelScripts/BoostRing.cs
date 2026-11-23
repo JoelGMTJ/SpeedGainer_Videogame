@@ -4,7 +4,8 @@ using UnityEngine;
 /// <summary>
 /// Anillo de impulso: si el jugador pasa a través de él, gana un poco de velocidad
 /// en la dirección en la que ya se está moviendo (funciona con gravedad invertida y hacia la izquierda).
-/// Con boostAmount negativo frena en lugar de impulsar (el anillo rojo, SlowRing).
+/// Velocidad nueva = velocidad * speedMultiplier + boostAmount.
+/// Con valores menores (multiplicador < 1 o boostAmount negativo) frena en lugar de impulsar (el anillo rojo, SlowRing).
 ///
 /// El aro tiene dos mitades: "Back" (se dibuja detrás del jugador) y "Front" (delante),
 /// así el astronauta se ve pasando a través. La animación de giro (como un frisbee) está en el
@@ -15,6 +16,8 @@ using UnityEngine;
 public class BoostRing : MonoBehaviour
 {
     [Header("Impulso")]
+    [Tooltip("Multiplica la velocidad actual al pasar (1.5 = +50%, 0.5 = la mitad). Se aplica antes de boostAmount.")]
+    [Min(0f)] public float speedMultiplier = 1f;
     [Tooltip("Velocidad que se suma (unidades/seg) en la dirección del movimiento. Negativo = frena (anillo rojo).")]
     public float boostAmount = 4f;
     [Tooltip("Solo para anillos que frenan: velocidad mínima con la que te deja (no te detiene ni te regresa).")]
@@ -62,18 +65,15 @@ public class BoostRing : MonoBehaviour
         if (rb == null || rb.GetComponent<PlayerMovement>() == null) return;
 
         Vector2 v = rb.linearVelocity;
-        if (boostAmount >= 0f)
-        {
-            Vector2 dir = v.magnitude >= minSpeedForDirection ? v.normalized : Vector2.right;
-            rb.linearVelocity = v + dir * boostAmount;
-        }
-        else
-        {
-            // Frenar: misma dirección, menos velocidad (sin bajar de minSpeedAfterSlow)
-            float speed = v.magnitude;
-            float slowed = Mathf.Max(Mathf.Min(speed, minSpeedAfterSlow), speed + boostAmount);
-            if (speed > 0.0001f) rb.linearVelocity = v / speed * slowed;
-        }
+        float speed = v.magnitude;
+        Vector2 dir = speed >= minSpeedForDirection ? v / speed : Vector2.right;
+        float newSpeed = speed * speedMultiplier + boostAmount;
+
+        // Anillo que frena: misma dirección, menos velocidad (sin bajar de minSpeedAfterSlow)
+        if (newSpeed < speed)
+            newSpeed = Mathf.Max(Mathf.Min(speed, minSpeedAfterSlow), newSpeed);
+
+        rb.linearVelocity = dir * newSpeed;
 
         readyTime = Time.time + cooldown;
         StopAllCoroutines();

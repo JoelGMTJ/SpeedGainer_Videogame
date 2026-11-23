@@ -87,6 +87,7 @@ public class LevelTimer : MonoBehaviour
         IsRunning = false;
         IsFinished = true;
         Stars = StarsForTime(ElapsedTime);
+        if (player != null) player.StopAtFinish();
         Debug.Log($"Nivel terminado en {FormatTime(ElapsedTime)} → {Stars} estrella(s)", this);
         LevelFinished?.Invoke(ElapsedTime, Stars);
     }
