@@ -99,6 +99,14 @@ public class LevelTimer : MonoBehaviour
         return 0;
     }
 
+    /// <summary>Tiempo máximo para conseguir esa cantidad de estrellas (1 a 3).</summary>
+    public float TimeLimitFor(int stars)
+    {
+        if (stars >= 3) return timeFor3Stars;
+        if (stars == 2) return timeFor2Stars;
+        return timeFor1Star;
+    }
+
     void UpdateText()
     {
         if (timerText == null) return;

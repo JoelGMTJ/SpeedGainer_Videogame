@@ -17,4 +17,5 @@ You can move to the left (A / <-) and right (D / ->) and switch gravity with *sp
 * Cave tiles by **Iphigenia Pixels** from the [Unity AssetStore](https://assetstore.unity.com/packages/2d/environments/2d-platfrom-tile-set-cave-61672)
 * Sky background by **Craftpix team** from the [Itch.io store](https://free-game-assets.itch.io/free-sky-with-clouds-background-pixel-art-set)
 * Particles by **Jean Moreno** from the [Unity AssetStore](https://assetstore.unity.com/packages/vfx/particles/cartoon-fx-remaster-free-109565)
+* Pixel font by **DevByDevv** from [Unity AssetStore](https://assetstore.unity.com/packages/2d/fonts/free-pixel-font-thaleah-140059)
 
