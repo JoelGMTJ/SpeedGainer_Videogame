@@ -69,13 +69,13 @@ public class LevelEndScreen : MonoBehaviour
     void OnEnable()
     {
         if (timer != null) timer.LevelFinished += OnLevelFinished;
-        if (player != null) player.PlayerReset += Hide;
+        if (player != null) player.PlayerReset += OnPlayerReset;
     }
 
     void OnDisable()
     {
         if (timer != null) timer.LevelFinished -= OnLevelFinished;
-        if (player != null) player.PlayerReset -= Hide;
+        if (player != null) player.PlayerReset -= OnPlayerReset;
     }
 
     void OnLevelFinished(float time, int stars)
@@ -84,11 +84,20 @@ public class LevelEndScreen : MonoBehaviour
         showRoutine = StartCoroutine(Show(time, stars));
     }
 
+    // Reinicio con R después de terminar: quitar la pantalla y volver a la música del nivel
+    void OnPlayerReset()
+    {
+        Hide();
+        MusicManager.PlaySceneMusic();
+    }
+
     IEnumerator Show(float time, int stars)
     {
         yield return new WaitForSecondsRealtime(showDelay);
 
         bool passed = stars >= 1;
+        if (passed) MusicManager.PlayLevelClear();
+        else MusicManager.PlayLevelLost();
         bool isLastLevel = SceneManager.GetActiveScene().buildIndex + 1 >= SceneManager.sceneCountInBuildSettings;
 
         if (titleText != null) titleText.text = passed ? "Nivel completado" : "Muy lento";
@@ -183,6 +192,7 @@ public class LevelEndScreen : MonoBehaviour
         }
         screenRoot.SetActive(false);
 
+        MusicManager.PlayGameClear();
         victoryRoot.SetActive(true);
         if (victoryGroup != null)
         {

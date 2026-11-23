@@ -20,3 +20,5 @@ You can move to the left (A / <-) and right (D / ->) and switch gravity with *sp
 * Pixel font by **DevByDevv** from [Unity AssetStore](https://assetstore.unity.com/packages/2d/fonts/free-pixel-font-thaleah-140059)
 * Astronaut sprite was generated with Claude AI using the following prompt: "Generate an image in 16 bits of an astronaut helmet and 2 legs, similar to Kirby in that is a big head and small legs, do not include arms"
 * Ring sprite generated with Claude AI using the following prompt: "Generate a 16 bit sprite of a ring, that rotates similar to a ring and is located vertically to create the ilussion of a character going inside it in a 2d platformer"
+* All of the music was composed by the great artist **David Wise**, composer for the games **Donkey Kong Country Returns** and **Donkey Kong Country Tropical Freeze**, 2 great games with great gameplay and specially music.
+
