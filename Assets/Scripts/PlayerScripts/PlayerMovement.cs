@@ -128,11 +128,18 @@ public class PlayerMovement : MonoBehaviour
         rb.linearVelocity = velocity;
     }
 
+    /// <summary>Se llama cada vez que se cambia la gravedad con la tecla (para efectos, sonidos, etc.).</summary>
+    public event System.Action<bool> GravityFlipped;
+
     public void FlipGravity()
     {
         gravityInverted = !gravityInverted;
         ApplyGravity();
+        GravityFlipped?.Invoke(gravityInverted);
     }
+
+    /// <summary>Se llama cuando el jugador se reinicia (tecla R).</summary>
+    public event System.Action PlayerReset;
 
     public void ResetPlayer()
     {
@@ -145,6 +152,7 @@ public class PlayerMovement : MonoBehaviour
 
         gravityInverted = startInverted;
         ApplyGravity();
+        PlayerReset?.Invoke();
     }
 
     void ApplyGravity()
